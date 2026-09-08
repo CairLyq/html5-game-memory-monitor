@@ -194,7 +194,7 @@ gl.drawArrays(4, 0, 3);
 gl.drawElements(4, 3, 0x1403, 0);
 push();
 s = snapshot();
-assert.strictEqual(s.drawCalls, 2, '绘制调用计数 2');
+assert.strictEqual(s.drawCallsTotal, 2, '绘制调用计数 2');
 
 // 着色器 / 程序
 gl.createShader();
@@ -220,7 +220,7 @@ listeners.forEach(function (fn) {
 });
 push();
 s = snapshot();
-assert.strictEqual(s.drawCalls, 0, '重置后绘制调用归零');
+assert.strictEqual(s.drawCallsTotal, 0, '重置后绘制调用归零');
 assert.ok(s.texturesAlive >= 1, '重置不清空存活纹理统计');
 
 // 返回值不被破坏

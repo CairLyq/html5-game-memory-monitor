@@ -45,17 +45,11 @@
     var fpsEl = $('fps');
     if (fpsEl) { fpsEl.textContent = fmtInt(fps); fpsEl.style.color = colorForFps(fps); }
     setText('frameMs', s.frameMs != null ? s.frameMs.toFixed(1) : '--');
-    setText('drawTotal', fmtInt(s.drawCalls));
+    setText('drawTotal', fmtInt(s.drawCallsTotal != null ? s.drawCallsTotal : s.drawCalls));
     setText('contexts', fmtInt(s.contexts));
 
-    var t = Date.now();
-    if (prev && t > prev.t && typeof s.drawCalls === 'number') {
-      var dt = (t - prev.t) / 1000;
-      var rate = Math.max(0, s.drawCalls - prev.drawCalls) / dt;
-      emaRate = emaRate ? emaRate * 0.7 + rate * 0.3 : rate;
-      setText('dps', fmtInt(emaRate));
-    }
-    prev = { drawCalls: s.drawCalls, t: t };
+    // 每帧 draw call（hook 在 rAF 中计算上一帧的 draw call 数）
+    setText('dps', fmtInt(s.drawCalls));
 
     // JS 堆
     var heap = resp.jsHeap || {};

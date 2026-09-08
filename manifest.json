@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HTML5 游戏内存监测",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "监测 HTML5 游戏（Phaser / PixiJS / Three.js / Babylon.js / Cocos / LayaAir 等）的 JS 堆内存、WebGL 纹理/缓冲区/着色器/渲染缓冲资源、FPS 与绘制调用；支持逐份纹理来源追踪。",
   "icons": {
     "16": "icons/icon16.png",

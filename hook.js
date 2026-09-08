@@ -164,7 +164,9 @@
     lastFrameT: 0,
     rafFrames: 0,
     rafLast: (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now(),
-    drawCalls: 0,
+    drawCalls: 0,           // 累积 draw call 总数
+    drawCallsFrame: 0,      // 上一帧的 draw call 数
+    drawCallsLastFrame: 0,  // 上一帧结束时的累积 drawCalls
     texturesAlive: 0,
     texBytes: 0,
     buffersAlive: 0,
@@ -705,6 +707,9 @@
   if (typeof origRAF === 'function') {
     window.requestAnimationFrame = function (cb) {
       return origRAF.call(window, function (t) {
+        // 计算上一帧的 draw call 数
+        state.drawCallsFrame = state.drawCalls - state.drawCallsLastFrame;
+        state.drawCallsLastFrame = state.drawCalls;
         state.rafFrames++;
         if (state.lastFrameT > 0) {
           var dt = t - state.lastFrameT;
@@ -902,7 +907,8 @@
       contexts: state.contexts,
       fps: state.fps,
       frameMs: Math.round(state.frameMs * 10) / 10,
-      drawCalls: state.drawCalls,
+      drawCalls: state.drawCallsFrame,
+      drawCallsTotal: state.drawCalls,
       texturesAlive: state.texturesAlive,
       texBytes: Math.round(state.texBytes),
       buffersAlive: state.buffersAlive,
@@ -1114,6 +1120,8 @@
     if (d && d.mark === CTL) {
       if (d.cmd === 'reset') {
         state.drawCalls = 0;
+        state.drawCallsFrame = 0;
+        state.drawCallsLastFrame = 0;
         state.rafFrames = 0;
         state.fps = 0;
         state.frameMs = 0;
@@ -1198,7 +1206,7 @@
       ['texBytes', '纹理显存', '--'],
       ['fps', 'FPS', '--'],
       ['frameMs', '帧耗时', '--'],
-      ['drawCalls', 'Draw Call', '--']
+      ['drawCalls', '绘制/帧', '--']
     ];
     var metricEls = {};
     for (var mi = 0; mi < metricDefs.length; mi++) {
@@ -1351,7 +1359,7 @@
         + ' | JS堆:' + (snap.jsHeap ? (snap.jsHeap / 1048576).toFixed(1) + 'MB' : '--')
         + ' | 纹理:' + snap.texturesAlive + '(' + (snap.texBytes / 1048576).toFixed(1) + 'MB)'
         + ' | FPS:' + snap.fps + ' 帧时:' + snap.frameMs + 'ms'
-        + ' | Draw:' + snap.drawCalls
+        + ' | Draw/帧:' + snap.drawCalls
         + ' | 缓冲:' + snap.buffersAlive + ' 着色器:' + snap.shadersAlive + ' 程序:' + snap.programsAlive
         + ' | RenderBuf:' + snap.renderbuffersAlive;
       console.log(line, 'color:#00d4ff;font-weight:bold');
