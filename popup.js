@@ -203,9 +203,10 @@
       .replace(/"/g, '&quot;');
   }
 
-  // 来源对象 -> 显示文本（函数名 @ 文件名:行号）
+  // 来源对象 -> 显示文本（优先业务侧 caller 帧，引擎封装层入口帧意义不大）
   function sourceText(src) {
     if (!src || !src.file) return '未知';
+    if (src.caller && src.caller.file) src = src.caller;
     var file = src.file;
     var slash = Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\'));
     if (slash >= 0) file = file.substring(slash + 1);
@@ -267,7 +268,8 @@
         + '\n存活: ' + (item.age != null ? item.age + 's' : '-')
         + (item.sourceName ? '\n资源名: ' + item.sourceName : '')
         + (item.sourceUrl ? '\n资源地址: ' + item.sourceUrl : '')
-        + (src && src.raw ? '\n调用栈: ' + src.raw : '');
+        + (src && src.raw ? '\nGL入口: ' + src.raw : '')
+        + (src && src.caller && src.caller.raw ? '\n业务调用: ' + src.caller.raw : '');
       html += '<div class="tex-row" title="' + escapeHtml(title) + '">'
         + '<span class="col-size">' + sizeLabel + '</span>'
         + '<span class="col-dim">' + dim + '</span>'

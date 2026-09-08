@@ -115,24 +115,69 @@
     return block * Math.max(1, Math.ceil(width / 4)) * Math.max(1, Math.ceil(height / 4));
   }
 
-  // 解析 V8 调用栈，提取第一个非 hook.js 自身的帧
-  function parseSource(stack) {
-    var empty = { func: '', file: '', line: 0, raw: '' };
-    if (!stack) return empty;
+  // 常见引擎 bundle 文件名特征：提取业务侧 caller 帧时跳过这些引擎封装帧
+  var ENGINE_FILE_RE = /laya|cocos|pixi|three|babylon|egret|phaser|createjs|playcanvas|melonjs/i;
+
+  // 解析单行 V8 调用栈帧
+  function parseFrameLine(line) {
+    var m = line.match(/at\s+(.+?)\s+\((.+?):(\d+):(\d+)\)/);
+    if (m) return { func: m[1], file: m[2], line: parseInt(m[3], 10), raw: line.trim() };
+    m = line.match(/at\s+(.+?):(\d+):(\d+)/);
+    if (m) return { func: '', file: m[1], line: parseInt(m[2], 10), raw: line.trim() };
+    m = line.match(/(.+?)@(.+?):(\d+):(\d+)/);
+    if (m) return { func: m[1], file: m[2], line: parseInt(m[3], 10), raw: line.trim() };
+    return null;
+  }
+
+  // 解析整条调用栈为帧数组（跳过 hook.js 自身帧）
+  function parseFrames(stack) {
+    var frames = [];
+    if (!stack) return frames;
     var lines = stack.split('\n');
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i];
       if (!line) continue;
       if (line.indexOf('hook.js') >= 0) continue;
       if (line.indexOf('captureStack') >= 0) continue;
-      var m = line.match(/at\s+(.+?)\s+\((.+?):(\d+):(\d+)\)/);
-      if (m) return { func: m[1], file: m[2], line: parseInt(m[3], 10), raw: line.trim() };
-      m = line.match(/at\s+(.+?):(\d+):(\d+)/);
-      if (m) return { func: '', file: m[1], line: parseInt(m[2], 10), raw: line.trim() };
-      m = line.match(/(.+?)@(.+?):(\d+):(\d+)/);
-      if (m) return { func: m[1], file: m[2], line: parseInt(m[3], 10), raw: line.trim() };
+      var f = parseFrameLine(line);
+      if (f) frames.push(f);
     }
-    return empty;
+    return frames;
+  }
+
+  // 入口帧：第一个非 hook.js 帧（对引擎游戏来说通常是引擎 GL 封装层）
+  function parseSource(stack) {
+    var frames = parseFrames(stack);
+    return frames.length ? frames[0] : { func: '', file: '', line: 0, raw: '' };
+  }
+
+  // 深层来源：entry（引擎 GL 封装层）+ caller（跳过与入口同文件及引擎 bundle 后
+  // 的第一个游戏侧帧，如加载器回调 / 场景反序列化 / 业务代码）。caller 可能为 null
+  // （引擎内部生成的纹理，如渲染目标、阴影图）。
+  function parseSourceDeep(stack) {
+    var empty = { func: '', file: '', line: 0, raw: '', caller: null };
+    var frames = parseFrames(stack);
+    if (!frames.length) return empty;
+    var entry = frames[0];
+    var caller = null;
+    for (var i = 1; i < frames.length; i++) {
+      var f = frames[i];
+      if (f.file === entry.file) continue;       // 引擎同一 bundle 内的调用链
+      if (ENGINE_FILE_RE.test(f.file)) continue; // 引擎其他模块文件
+      caller = f;
+      break;
+    }
+    return { func: entry.func, file: entry.file, line: entry.line, raw: entry.raw, caller: caller };
+  }
+
+  // 来源对象 → 单行文本（有业务 caller 时优先展示 caller，引擎入口帧放后面）
+  function sourceLine(src) {
+    if (!src || (!src.file && !src.func)) return '';
+    var main = (src.func ? src.func + '@' : '') + src.file + (src.line ? ':' + src.line : '');
+    if (src.caller && src.caller.file) {
+      main += ' <= ' + (src.caller.func ? src.caller.func + '@' : '') + src.caller.file + (src.caller.line ? ':' + src.caller.line : '');
+    }
+    return main;
   }
 
   if (typeof module !== 'undefined' && module.exports) {
@@ -143,7 +188,8 @@
       bytesPerPixel: bytesPerPixel,
       estimateTexBytes: estimateTexBytes,
       estimateCompressedBytes: estimateCompressedBytes,
-      parseSource: parseSource
+      parseSource: parseSource,
+      parseSourceDeep: parseSourceDeep
     };
   }
 
@@ -343,7 +389,7 @@
       target: 0,
       mip: false,
       createdAt: now(),
-      createdSource: parseSource(captureStack()),
+      createdSource: parseSourceDeep(captureStack()),
       uploadedAt: 0,
       uploadedSource: null,
       sourceUrl: '',
@@ -387,11 +433,95 @@
     return { internalFormat: internalFormat, width: width, height: height, type: type };
   }
 
-  // 从 texImage2D 参数中提取 pixels 对象（支持 9 参数和 6 参数两种签名）
-  function extractPixels(args) {
-    if (args.length > 6) return args[8]; // 9 参数：pixels 是第 9 个
-    return args[5]; // 6 参数：pixels 是第 6 个
+  // 从参数中提取 pixels 对象（按调用签名区分）：
+  //  texImage2D          9 参数 (…width,height,format,type,pixels) / 6 参数 (…format,type,pixels)
+  //  compressedTexImage2D 7 参数 (…width,height,border,pixels)
+  function extractPixels(args, compressed) {
+    if (compressed) return args[6];
+    return args.length > 6 ? args[8] : args[5];
   }
+
+  // ---- 资源 URL 标记：XHR / fetch 加载的二进制资源（KTX、图集等 ArrayBuffer）----
+  // 引擎异步加载纹理时，上传点的调用栈只剩引擎回调链（业务帧早已脱离栈），
+  // 所以在资源加载层标记来源 URL，上传纹理时通过 pixels 底层 ArrayBuffer 反查。
+  var resUrlMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+  function tagBuffer(buffer, url) {
+    if (!resUrlMap || !buffer || !url) return;
+    try { if (!resUrlMap.has(buffer)) resUrlMap.set(buffer, url); } catch (e) {}
+  }
+
+  function bufferSourceUrl(pixels) {
+    if (!resUrlMap || !pixels) return '';
+    var buf = pixels.buffer || pixels;
+    try { return resUrlMap.has(buf) ? resUrlMap.get(buf) : ''; } catch (e) { return ''; }
+  }
+
+  // 在 xhr.open 时挂 load 监听（先于游戏自己的 handler，保证标记先于纹理上传生效）
+  function patchXHR() {
+    if (typeof XMLHttpRequest === 'undefined' || resUrlMap == null) return;
+    try {
+      var xo = XMLHttpRequest.prototype;
+      var origOpen = xo.open;
+      if (origOpen.__gmemPatched) return;
+      xo.open = function (method, url) {
+        var xhr = this;
+        if (!xhr.__gmemTagged) {
+          xhr.__gmemTagged = true;
+          xhr.addEventListener('load', function () {
+            try {
+              var full = xhr.responseURL || url || '';
+              var resp = xhr.response;
+              if (!full || !resp) return;
+              if (resp instanceof ArrayBuffer) tagBuffer(resp, full);
+              else if (typeof Blob !== 'undefined' && resp instanceof Blob && resp.arrayBuffer) {
+                resp.arrayBuffer().then(function (b) { tagBuffer(b, full); }).catch(function () {});
+              }
+            } catch (e) {}
+          });
+        }
+        return origOpen.apply(this, arguments);
+      };
+      origOpen.__gmemPatched = true;
+    } catch (e) {}
+  }
+
+  function patchFetch() {
+    if (typeof fetch !== 'function' || typeof Response === 'undefined' || resUrlMap == null) return;
+    try {
+      var origFetch = fetch;
+      if (origFetch.__gmemPatched) return;
+      var patched = function () {
+        return origFetch.apply(this, arguments).then(function (resp) {
+          try {
+            if (!(resp instanceof Response)) return resp;
+            var url = resp.url || '';
+            ['arrayBuffer', 'blob'].forEach(function (m) {
+              var orig = resp[m];
+              if (typeof orig !== 'function') return;
+              resp[m] = function () {
+                return orig.apply(resp, arguments).then(function (data) {
+                  try {
+                    if (data instanceof ArrayBuffer) tagBuffer(data, url);
+                    else if (typeof Blob !== 'undefined' && data instanceof Blob && data.arrayBuffer) {
+                      data.arrayBuffer().then(function (b) { tagBuffer(b, url); }).catch(function () {});
+                    }
+                  } catch (e) {}
+                  return data;
+                });
+              };
+            });
+          } catch (e) {}
+          return resp;
+        });
+      };
+      patched.__gmemPatched = true;
+      try { window.fetch = patched; } catch (e) {}
+    } catch (e) {}
+  }
+
+  patchXHR();
+  patchFetch();
 
   // 从 pixels 对象中提取资源来源（URL/名称）
   function extractSourceFromPixels(pixels) {
@@ -409,7 +539,10 @@
     if (cname === 'HTMLVideoElement' || (typeof HTMLVideoElement !== 'undefined' && pixels instanceof HTMLVideoElement)) {
       return { url: pixels.currentSrc || pixels.src || '', name: 'video', type: 'video' };
     }
-    if (pixels.buffer || (typeof pixels.byteLength === 'number' && typeof pixels.BYTES_PER_ELEMENT === 'number')) {
+    if (pixels.buffer || (typeof pixels.byteLength === 'number' && typeof pixels.BYTES_PER_ELEMENT === 'number') || pixels instanceof ArrayBuffer) {
+      // 二进制资源（KTX / 原始像素）：反查加载时标记的 URL
+      var resUrl = bufferSourceUrl(pixels.buffer || pixels);
+      if (resUrl) return { url: resUrl, name: '', type: 'res' };
       return { url: '', name: 'raw pixel data', type: 'raw' };
     }
     return null;
@@ -424,12 +557,12 @@
     var meta = getBoundTexMeta(gl, target);
     if (!meta) return;
     if (!meta.uploadedAt) {
-      meta.uploadedSource = parseSource(captureStack());
+      meta.uploadedSource = parseSourceDeep(captureStack());
       meta.uploadedAt = now();
     }
-    // 提取 pixels 来源（图片 URL / canvas / ImageBitmap 等）
+    // 提取 pixels 来源（图片 URL / canvas / ImageBitmap / 资源 URL 等）
     if (!meta.sourceUrl && !meta.sourceName) {
-      var srcInfo = extractSourceFromPixels(extractPixels(args));
+      var srcInfo = extractSourceFromPixels(extractPixels(args, compressed));
       if (srcInfo) {
         meta.sourceUrl = srcInfo.url;
         meta.sourceName = srcInfo.name;
@@ -459,7 +592,7 @@
     var meta = getBoundTexMeta(gl, args[0]);
     if (!meta) return;
     if (!meta.uploadedAt) {
-      meta.uploadedSource = parseSource(captureStack());
+      meta.uploadedSource = parseSourceDeep(captureStack());
       meta.uploadedAt = now();
     }
     if (!meta.sourceUrl && !meta.sourceName) {
@@ -535,7 +668,7 @@
     var meta = getBoundTexMeta(this, args[0]);
     if (!meta) return;
     if (!meta.uploadedAt) {
-      meta.uploadedSource = parseSource(captureStack());
+      meta.uploadedSource = parseSourceDeep(captureStack());
       meta.uploadedAt = now();
     }
     meta.format = internalFormat;
@@ -559,7 +692,7 @@
     var meta = getBoundTexMeta(gl, target);
     if (!meta) return;
     if (!meta.uploadedAt) {
-      meta.uploadedSource = parseSource(captureStack());
+      meta.uploadedSource = parseSourceDeep(captureStack());
       meta.uploadedAt = now();
     }
     meta.format = internalFormat;
@@ -589,7 +722,7 @@
     var meta = getBoundTexMeta(this, target);
     if (!meta) return;
     if (!meta.uploadedAt) {
-      meta.uploadedSource = parseSource(captureStack());
+      meta.uploadedSource = parseSourceDeep(captureStack());
       meta.uploadedAt = now();
     }
     meta.format = internalFormat;
@@ -612,7 +745,7 @@
       height: 0,
       samples: 0,
       createdAt: now(),
-      createdSource: parseSource(captureStack())
+      createdSource: parseSourceDeep(captureStack())
     });
     state.renderbuffersAlive++;
   });
@@ -1165,8 +1298,8 @@
         }
         return s;
       }
-      var createdSrc = t.createdSource ? (t.createdSource.func || '') + '@' + (t.createdSource.file || '') + ':' + (t.createdSource.line || '') : '';
-      var uploadedSrc = t.uploadedSource ? (t.uploadedSource.func || '') + '@' + (t.uploadedSource.file || '') + ':' + (t.uploadedSource.line || '') : '';
+      var createdSrc = t.createdSource ? sourceLine(t.createdSource) : '';
+      var uploadedSrc = t.uploadedSource ? sourceLine(t.uploadedSource) : '';
       rows.push([
         t.id,
         t.bytes,
@@ -1382,13 +1515,13 @@
       if (item.sourceName) return item.sourceName;
       if (item.sourceUrl) return fmtUrl(item.sourceUrl);
       var src = item.uploadedSource || item.createdSource;
-      if (src && src.file) {
-        var f = src.file;
-        var slash = Math.max(f.lastIndexOf('/'), f.lastIndexOf('\\'));
-        if (slash >= 0) f = f.substring(slash + 1);
-        return (src.func ? src.func + '@' : '') + f;
-      }
-      return '未知';
+      if (!src || !src.file) return '未知';
+      // 优先显示业务侧 caller 帧（引擎封装层入口帧意义不大）
+      if (src.caller && src.caller.file) src = src.caller;
+      var f = src.file;
+      var slash = Math.max(f.lastIndexOf('/'), f.lastIndexOf('\\'));
+      if (slash >= 0) f = f.substring(slash + 1);
+      return (src.func ? src.func + '@' : '') + f;
     }
 
     function updateHUD() {

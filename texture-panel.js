@@ -34,6 +34,8 @@
 
   function sourceText(src) {
     if (!src || !src.file) return '';
+    // 优先显示业务侧 caller 帧（引擎封装层入口帧意义不大）
+    if (src.caller && src.caller.file) src = src.caller;
     var f = src.file;
     var slash = Math.max(f.lastIndexOf('/'), f.lastIndexOf('\\'));
     if (slash >= 0) f = f.substring(slash + 1);

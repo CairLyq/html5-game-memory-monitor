@@ -36,6 +36,32 @@ assert.strictEqual(ps2.file, 'baz.js', 'parseSource 跳过 hook.js 自身帧');
 var ps3 = pure.parseSource('');
 assert.strictEqual(ps3.file, '', 'parseSource 空栈返回空');
 
+// parseSourceDeep：入口帧 + 跳过引擎 bundle 后的业务 caller 帧
+var layaStack = 'Error\n'
+  + '    at wrapped (hook.js:1:1)\n'
+  + '    at GL2TextureContext.setTextureImageData (https://game/laya.webgl_2D.js:9:99)\n'
+  + '    at Texture2D._upload (https://game/laya.webgl_2D.js:8:88)\n'
+  + '    at Loader.onLoaded (https://game/laya.core.js:7:77)\n'
+  + '    at SceneLoader.deserialize (https://game/scenes/main.js:6:66)';
+var deep = pure.parseSourceDeep(layaStack);
+assert.strictEqual(deep.func, 'GL2TextureContext.setTextureImageData', 'deep 入口帧 = 引擎 GL 封装层');
+assert.strictEqual(deep.file, 'https://game/laya.webgl_2D.js', 'deep 入口文件');
+assert.ok(deep.caller, 'deep 提取到 caller');
+assert.strictEqual(deep.caller.func, 'SceneLoader.deserialize', 'caller 取业务帧');
+assert.strictEqual(deep.caller.file, 'https://game/scenes/main.js', 'caller 文件为游戏代码');
+assert.ok(deep.caller.file.indexOf('laya.') !== 0, 'caller 跳过 laya.core.js 引擎模块');
+
+// 全链都是引擎内部（渲染目标等）→ caller 为 null
+var engineOnly = pure.parseSourceDeep('Error\n'
+  + '    at GL2TextureContext.createRenderTarget (https://game/laya.webgl_2D.js:9:9)\n'
+  + '    at RenderTarget._create (https://game/laya.webgl_2D.js:8:8)');
+assert.strictEqual(engineOnly.caller, null, '引擎内部纹理无业务 caller');
+assert.strictEqual(engineOnly.func, 'GL2TextureContext.createRenderTarget', '仍保留入口帧');
+
+// parseSource 兼容旧行为（取首个非 hook 帧）
+var compat = pure.parseSourceDeep('Error\n    at direct (game.js:5:5)');
+assert.strictEqual(compat.caller, null, '仅一帧时无 caller');
+
 /* ---------------- 2. 挂钩逻辑（伪造浏览器环境） ---------------- */
 const messages = [];
 const listeners = [];

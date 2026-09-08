@@ -70,6 +70,16 @@ GL2Proto.texSubImage3D = function () {};
 GL2Proto.texStorage3D = function () {};
 GL2Proto.compressedTexImage3D = function () {};
 
+// 伪造 XMLHttpRequest（验证 KTX 资源 URL 标记链路）
+function FakeXHR() { this._handlers = {}; }
+FakeXHR.prototype = {
+  open(m, u) { this._url = u; },
+  addEventListener(type, fn) { (this._handlers[type] = this._handlers[type] || []).push(fn); },
+  send() {},
+  __fire(type) { (this._handlers[type] || []).forEach(function (fn) { fn(); }); }
+};
+global.XMLHttpRequest = FakeXHR;
+
 function FakeGL1() { this._s = { tex: null, tex3d: null, tex2darr: null, arr: null, elem: null, rb: null }; }
 FakeGL1.prototype = GL1Proto;
 function FakeGL2() { this._s = { tex: null, tex3d: null, tex2darr: null, arr: null, elem: null, rb: null }; }
@@ -213,6 +223,23 @@ assert.strictEqual(C.t.bytes, 8 * 256 * 256 + 8 * 128 * 128, 'C: 字节为各层
   });
   assert.ok(E.ok, 'E: texStorage2D 捕获到大小');
   assert.strictEqual(E.t.width, 256, 'E: 宽 256');
+}
+
+/* F. LayaAir KTX 地图经 XHR 加载：资源 URL 标记 → 上传时反查 */
+{
+  const xhr = new global.XMLHttpRequest();
+  xhr.open('GET', 'https://game.example/assets/map_terrain.ktx');
+  xhr.responseType = 'arraybuffer';
+  xhr.response = new ArrayBuffer(64);
+  xhr.send();
+  xhr.__fire('load'); // 引擎 load 回调里同步解析并上传
+  let F = scenario('F. XHR 加载的 KTX 地图 1024x1024：来源显示资源 URL', () => {
+    const tex = gl.createTexture();
+    gl.bindTexture(TEXTURE_2D, tex);
+    gl.compressedTexImage2D(TEXTURE_2D, 0, DXT1, 1024, 1024, 0, new Uint8Array(xhr.response));
+  });
+  assert.ok(F.ok, 'F: 记录到纹理大小');
+  assert.strictEqual(F.t.sourceUrl, 'https://game.example/assets/map_terrain.ktx', 'F: 来源 = 资源 URL');
 }
 
 push();
