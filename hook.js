@@ -435,7 +435,8 @@
     updateTexBytes(meta, bytes);
   }
 
-  // texSubImage2D 专用：只提取 pixels 来源，不更新字节数（字节数由 texImage2D / texStorage2D 负责）
+  // texSubImage2D 专用：提取 pixels 来源；兜底：若 texImage2D/texStorage2D 未被捕获（尺寸为0），
+  // 从 texSubImage2D 的 9 参数签名中提取尺寸和格式，更新纹理元数据并计算字节数
   // texSubImage2D 签名：(target, level, xoffset, yoffset, width, height, format, type, pixels) 9 参数
   //              或 (target, level, xoffset, yoffset, format, type, pixels) 7 参数
   function uploadTexSubImage2D(gl, args) {
@@ -451,6 +452,35 @@
       if (srcInfo) {
         meta.sourceUrl = srcInfo.url;
         meta.sourceName = srcInfo.name;
+      }
+    }
+    // 兜底：如果尺寸为 0（texImage2D/texStorage2D 未被捕获），从 texSubImage2D 提取尺寸
+    if (!meta.width || !meta.height || meta.bytes <= 0) {
+      var w = 0, h = 0, fmt = 0, type = 0x1401, subPixels = null;
+      if (args.length > 7) {
+        // 9 参数签名：(target, level, xoffset, yoffset, width, height, format, type, pixels)
+        w = args[4]; h = args[5]; fmt = args[6]; type = args[7] || 0x1401; subPixels = args[8];
+      } else {
+        // 7 参数签名：(target, level, xoffset, yoffset, format, type, pixels)
+        // 从 pixels 对象（ImageBitmap/ImageData/HTMLCanvasElement/HTMLVideoElement）提取尺寸
+        fmt = args[4]; type = args[5] || 0x1401; subPixels = args[6];
+        if (subPixels) {
+          w = subPixels.videoWidth || subPixels.width || 0;
+          h = subPixels.videoHeight || subPixels.height || 0;
+        }
+      }
+      if (w && h) {
+        var ch = channelsForFormat(fmt);
+        var cb = componentBytes(type);
+        var bpp = ch && cb ? ch * cb : 0;
+        if (bpp > 0) {
+          var bytes = w * h * bpp;
+          if (!meta.width) meta.width = w;
+          if (!meta.height) meta.height = h;
+          if (!meta.format) meta.format = fmt;
+          if (!meta.target) meta.target = args[0];
+          updateTexBytes(meta, bytes);
+        }
       }
     }
   }
@@ -663,17 +693,40 @@
   // 关键修复：某些浏览器/引擎会把 createTexture/deleteTexture/texImage2D 等常用方法
   // 直接定义在 gl 实例自身上，遮蔽原型方法。仅 patch 原型无效，必须在 getContext 时
   // 删除实例自身的 WebGL 方法属性，让它回退到已被 patch 的原型方法。
+  // Chrome 的 WebGL 上下文实例自身定义了部分方法，会遮蔽原型上的 patch
+  // 必须强制删除这些实例属性，让调用回退到已 patch 的原型方法
+  var INSTANCE_TEX_METHODS = [
+    'createTexture', 'deleteTexture',
+    'texImage2D', 'texSubImage2D', 'texStorage2D',
+    'texImage3D', 'texSubImage3D', 'texStorage3D',
+    'compressedTexImage2D', 'compressedTexSubImage2D',
+    'compressedTexImage3D', 'compressedTexSubImage3D',
+    'copyTexImage2D', 'copyTexSubImage2D',
+    'generateMipmap', 'bindTexture'
+  ];
+
   function patchInstance(gl) {
     try {
+      var proto = Object.getPrototypeOf(gl);
+      // 第一步：删除实例属性，并把 patch 后的原型方法直接赋值到实例上
+      // 这样即使引擎缓存了 gl.texStorage2D 等方法引用，拿到的也是 patch 后的版本
+      for (var j = 0; j < INSTANCE_TEX_METHODS.length; j++) {
+        var mname = INSTANCE_TEX_METHODS[j];
+        try { delete gl[mname]; } catch (e) { /* non-configurable */ }
+        if (proto && typeof proto[mname] === 'function') {
+          try { gl[mname] = proto[mname]; } catch (e) { /* 只读属性 */ }
+        }
+      }
+      // 第二步：通用遍历，删除所有原型链上存在同名函数的实例属性
       var names = Object.getOwnPropertyNames(gl);
       for (var i = 0; i < names.length; i++) {
         var name = names[i];
         if (typeof gl[name] !== 'function') continue;
-        var proto = Object.getPrototypeOf(gl);
+        var p = proto;
         var found = false;
-        while (proto && proto !== Object.prototype) {
-          if (typeof proto[name] === 'function') { found = true; break; }
-          proto = Object.getPrototypeOf(proto);
+        while (p && p !== Object.prototype) {
+          if (typeof p[name] === 'function') { found = true; break; }
+          p = Object.getPrototypeOf(p);
         }
         if (found) {
           try { delete gl[name]; } catch (e) { /* 忽略 non-configurable */ }
