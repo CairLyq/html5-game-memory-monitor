@@ -260,13 +260,16 @@
 
   async function exportData(format) {
     var resp = await requestTab('export-textures', { format: format });
+    // content.js 原样透传 hook.js 的返回：{ ok, format, data(CSV/JSON 字符串), count }
     if (resp && resp.ok && resp.data) {
       var ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
       if (format === 'json') {
-        downloadFile('textures-' + ts + '.json', resp.data.data, 'application/json');
+        downloadFile('textures-' + ts + '.json', resp.data, 'application/json');
       } else {
-        downloadFile('textures-' + ts + '.csv', resp.data.data, 'text/csv;charset=utf-8');
+        downloadFile('textures-' + ts + '.csv', resp.data, 'text/csv;charset=utf-8');
       }
+    } else {
+      alert('导出失败: ' + (resp && resp.error ? resp.error : '页面未注入监测'));
     }
   }
 
