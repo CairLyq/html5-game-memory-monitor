@@ -18,6 +18,20 @@
 | 着色器 / 程序 | 挂钩 create/delete | 存活数量 |
 | 引擎识别 | 检测全局对象 | Phaser / PixiJS / Three.js / Babylon.js / Cocos / LayaAir / CreateJS / PlayCanvas / melonJS / Unity WebGL |
 
+## 截图预览
+
+### 弹窗面板
+
+![弹窗面板](docs/screenshots/popup-overview.png)
+
+实时显示 JS 堆内存、纹理数量与显存、FPS、帧耗时、绘制调用，以及纹理明细列表（含资源名称与加载地址）。
+
+### 纹理明细面板
+
+![纹理明细面板](docs/screenshots/texture-panel.png)
+
+全量纹理列表，支持搜索、排序、显隐调试、素材替换、绑定次数统计，以及 CSV/JSON 导出。
+
 ## 安装
 
 1. 打开 `chrome://extensions`（Edge 为 `edge://extensions`）；
