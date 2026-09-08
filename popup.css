@@ -155,7 +155,7 @@ footer {
 }
 .status.warn { color: var(--amber); }
 
-.actions { display: flex; gap: 8px; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 
 button {
   background: #16233f;

@@ -1,8 +1,12 @@
 /**
  * hook.js — 注入页面“主世界”(Main World) 的 WebGL 资源挂钩脚本。
  *
- * 注入方式：在 manifest.json 中注册为 MAIN world content script，document_start 同步执行，
- *           确保在页面任何脚本之前完成 WebGL API 挂钩（解决 Laya 等引擎早期初始化错过的问题）。
+ * 注入方式（两种，见 README）：
+ *  - 白名单网站：background.js 用 chrome.scripting.registerContentScripts 注册为
+ *    MAIN world 内容脚本，document_start 同步执行，确保在页面任何脚本之前完成
+ *    WebGL API 挂钩（解决 Laya 等引擎早期初始化错过的问题）；
+ *  - 点击扩展图标：popup.js 用 activeTab + chrome.scripting.executeScript(world: MAIN)
+ *    临时注入，仅统计注入之后的资源。
  *
  * 职责：
  *  - 挂钩 HTMLCanvasElement.getContext，检测 WebGL / WebGL2 上下文；
@@ -144,6 +148,10 @@
   }
 
   if (typeof window === 'undefined') return;
+
+  // 防止重复注入导致重复挂钩、重复统计（白名单注册与弹窗临时注入可能先后到达）
+  if (window.__GAME_MEM_HOOK__) return;
+  window.__GAME_MEM_HOOK__ = true;
 
   /* ================= 二、浏览器挂钩逻辑 ================= */
 
@@ -428,11 +436,19 @@
       }
     }
     var p = parseTexImageArgs(args);
+    var w = compressed ? args[3] : p.width;
+    var h = compressed ? args[4] : p.height;
     meta.format = compressed ? args[2] : p.internalFormat;
-    meta.width = compressed ? args[3] : p.width;
-    meta.height = compressed ? args[4] : p.height;
     meta.target = target;
-    updateTexBytes(meta, bytes);
+    // 逐层上传（压缩 KTX / 手动 mip 链每层调一次 texImage2D/compressedTexImage2D）：
+    // 基准尺寸取最大层（避免被最小 mip 层覆盖），字节按层记录后求和；同层重传替换不累计
+    var level = args[1] || 0;
+    if (!meta.levelBytes) meta.levelBytes = {};
+    meta.levelBytes[level] = bytes;
+    if (!meta.width || w > meta.width) { meta.width = w; meta.height = h; }
+    var total = 0;
+    for (var lk in meta.levelBytes) total += meta.levelBytes[lk];
+    updateTexBytes(meta, total);
   }
 
   // texSubImage2D 专用：提取 pixels 来源；兜底：若 texImage2D/texStorage2D 未被捕获（尺寸为0），
@@ -492,6 +508,12 @@
   patchBoth('generateMipmap', function () {
     var meta = getBoundTexMeta(this, GL_TEXTURE_2D);
     if (!meta || meta.mip || meta.bytes <= 0) return;
+    // 逐层上传已记录完整 mip 链字节，不再按 4/3 估算重复累加
+    if (meta.levelBytes) {
+      var n = 0;
+      for (var k in meta.levelBytes) n++;
+      if (n > 1) return;
+    }
     meta.mip = true;
     var add = meta.bytes / 3;
     meta.bytes += add;
@@ -1201,12 +1223,14 @@
 
   detectEngine();
 
-  // ---- 页面内悬浮 HUD 面板 ----
+  // ---- 页面内悬浮 HUD 面板（默认关闭；用户在弹窗中开启后跨页面记住，关闭即失效） ----
+  var HUD_SHOWN_KEY = 'game-mem-hud-shown';
+
   function createHUD() {
     if (document.getElementById('game-mem-hud')) return;
     try {
-      if (localStorage.getItem('game-mem-hud-hidden') === '1') return;
-    } catch (e) { /* 忽略 */ }
+      if (localStorage.getItem(HUD_SHOWN_KEY) !== '1') return;
+    } catch (e) { return; }
 
     var hud = document.createElement('div');
     hud.id = 'game-mem-hud';
@@ -1339,7 +1363,7 @@
     });
     closeBtn.addEventListener('click', function () {
       hud.remove();
-      try { localStorage.setItem('game-mem-hud-hidden', '1'); } catch (e) {}
+      try { localStorage.removeItem(HUD_SHOWN_KEY); } catch (e) {}
     });
 
     function fmtBytes(b) {
@@ -1444,12 +1468,12 @@
       initHUD();
     }
 
-    // 监听 popup 的"显示 HUD"请求
+    // 监听 popup 的"显示 HUD"请求（默认关闭，显式开启后记住）
     window.addEventListener('message', function (ev) {
       if (ev.source !== window) return;
       var d = ev.data;
       if (d && d.mark === CTL && d.cmd === 'show-hud') {
-        try { localStorage.removeItem('game-mem-hud-hidden'); } catch (e) {}
+        try { localStorage.setItem(HUD_SHOWN_KEY, '1'); } catch (e) {}
         createHUD();
       }
     });

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>HTML5 游戏内存监测 · 常驻监测网站</title>
+<link rel="stylesheet" href="options.css">
+</head>
+<body>
+<header>
+  <div class="brand">MEM·WATCH <span class="sub">常驻监测网站</span></div>
+</header>
+
+<section class="card intro">
+  <p><b>两种启用方式：</b></p>
+  <ul>
+    <li><b>白名单网站</b>（此处配置）：每次打开页面都会在游戏脚本运行<b>之前</b>自动注入，可统计到全部资源（推荐常用游戏站添加到此处）；</li>
+    <li><b>点击扩展图标</b>：仅对当前页面临时注入，只统计注入之后的资源，不保留、不申请常驻权限。</li>
+  </ul>
+  <p class="dim">页面内悬浮 HUD 默认关闭，可在弹窗中点击「显示 HUD」开启，关闭后不再自动弹出。</p>
+</section>
+
+<section class="card">
+  <div class="card-title">添加网站</div>
+  <div class="add-row">
+    <input id="siteInput" type="text" spellcheck="false"
+           placeholder="例如：example.com、*.example.com、localhost">
+    <button id="btnAdd" type="button">添加</button>
+  </div>
+  <div id="msg" class="msg"></div>
+</section>
+
+<section class="card">
+  <div class="card-title">白名单 <span id="siteCount" class="dim"></span></div>
+  <ul id="siteList" class="site-list"></ul>
+  <div id="siteEmpty" class="empty" style="display:none;">暂无网站。所有网站都只在你点击扩展图标时临时监测。</div>
+</section>
+
+<p class="foot-note dim">需要 Chrome 111+。删除网站会同时收回对应网站的访问授权。</p>
+
+<script src="options.js"></script>
+</body>
+</html>

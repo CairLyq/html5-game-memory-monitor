@@ -1,7 +1,11 @@
 /**
  * popup.js — 扩展弹窗面板。
- * 每 500ms 向当前标签页 content script 拉取一次统计快照，
- * 渲染指标并绘制 FPS / JS 堆 / 纹理显存三条趋势折线。
+ *
+ * 打开弹窗（即点击扩展图标，activeTab 生效）时：
+ *  - 若当前页已有监测脚本（白名单网站或此前注入过）→ 直接拉取统计；
+ *  - 否则向当前标签页临时注入 hook.js（MAIN world）+ content.js，
+ *    仅统计注入之后的资源，不申请常驻权限。
+ * 每 500ms 拉取一次快照，渲染指标并绘制 FPS / JS 堆 / 纹理显存三条趋势折线。
  */
 (function () {
   'use strict';
@@ -10,8 +14,11 @@
 
   var MAX = 90; // 历史样本数（45 秒 @500ms）
   var hist = { fps: [], frameMs: [], heap: [], tex: [] };
-  var prev = null;   // 上一次采样（用于计算绘制调用速率）
   var emaRate = 0;
+
+  var injecting = false;    // 正在执行注入
+  var uninjectable = false; // 当前页无法注入（浏览器内部页面等），不再重试
+  var lateMode = false;     // 本次为本弹窗临时注入（非白名单 document_start 注入）
 
   function fmtMB(b) { return b ? (b / 1048576).toFixed(2) : '0.00'; }
   function fmtInt(v) { return (typeof v === 'number' && isFinite(v)) ? Math.round(v).toLocaleString() : '--'; }
@@ -30,12 +37,52 @@
     return '#f87171';
   }
 
+  /* ---------- 按需注入（activeTab） ---------- */
+
+  function injectScripts(tab, cb) {
+    injecting = true;
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files: ['hook.js'],
+      world: 'MAIN',
+      injectImmediately: true
+    }, function () {
+      if (chrome.runtime.lastError) {
+        injecting = false;
+        uninjectable = true;
+        cb(false);
+        return;
+      }
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js'],
+        injectImmediately: true
+      }, function () {
+        injecting = false;
+        if (chrome.runtime.lastError) { uninjectable = true; cb(false); return; }
+        lateMode = true;
+        cb(true);
+      });
+    });
+  }
+
+  // 若当前页尚未注入则先注入，成功后再继续 cb
+  function ensureInjected(tab, cb) {
+    chrome.tabs.sendMessage(tab.id, { type: 'get-stats' }, function (resp) {
+      if (!chrome.runtime.lastError && resp) { cb(); return; }
+      if (uninjectable) return;
+      injectScripts(tab, function (ok) { if (ok) cb(); });
+    });
+  }
+
   function render(resp) {
     if (!resp || !resp.ok) { setStatus('未注入：请在有游戏页面的标签页使用', true); return; }
     if (!resp.instrumented) { setStatus('等待监测注入（≤1 秒）…'); return; }
 
     var s = resp.stats || {};
-    setStatus(s.active ? '监测中' : '本页未检测到 WebGL 上下文', !s.active);
+    setStatus(s.active
+      ? (lateMode ? '监测中（临时注入 · 仅统计之后的资源）' : '监测中')
+      : '本页未检测到 WebGL 上下文', !s.active);
 
     // 引擎
     setText('engine', s.engine ? (s.engine + (s.engineVersion ? ' v' + s.engineVersion : '')) : '未识别');
@@ -242,8 +289,10 @@
   function init() {
     $('btnReset').addEventListener('click', function () {
       currentTab(function (tab) {
-        chrome.tabs.sendMessage(tab.id, { type: 'reset' }, function () {
-          if (!chrome.runtime.lastError) setStatus('计数已重置');
+        ensureInjected(tab, function () {
+          chrome.tabs.sendMessage(tab.id, { type: 'reset' }, function () {
+            if (!chrome.runtime.lastError) setStatus('计数已重置');
+          });
         });
       });
     });
@@ -252,8 +301,10 @@
     });
     $('btnHud').addEventListener('click', function () {
       currentTab(function (tab) {
-        chrome.tabs.sendMessage(tab.id, { type: 'show-hud' }, function () {
-          if (!chrome.runtime.lastError) setStatus('已在页面显示 HUD 面板');
+        ensureInjected(tab, function () {
+          chrome.tabs.sendMessage(tab.id, { type: 'show-hud' }, function () {
+            if (!chrome.runtime.lastError) setStatus('已在页面显示 HUD 面板');
+          });
         });
       });
     });
@@ -263,11 +314,23 @@
         chrome.tabs.create({ url: url });
       });
     });
+    $('btnOptions').addEventListener('click', function () {
+      chrome.runtime.openOptionsPage();
+    });
 
     function poll() {
       currentTab(function (tab) {
         chrome.tabs.sendMessage(tab.id, { type: 'get-stats' }, function (resp) {
-          if (chrome.runtime.lastError) { setStatus('页面未注入监测，请刷新页面', true); return; }
+          if (chrome.runtime.lastError) {
+            if (uninjectable) { setStatus('此页面无法注入监测脚本（浏览器内部页面或受限站点）', true); return; }
+            if (!injecting) {
+              setStatus('正在向当前页面注入监测…');
+              injectScripts(tab, function (ok) {
+                if (!ok) setStatus('此页面无法注入监测脚本（浏览器内部页面或受限站点）', true);
+              });
+            }
+            return;
+          }
           render(resp);
         });
       });
