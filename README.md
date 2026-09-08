@@ -2,26 +2,15 @@
 
 一个 Manifest V3 浏览器扩展：实时监测 HTML5 游戏页面的 **JS 堆内存**、**WebGL 资源（纹理 / 缓冲区 / 着色器 / 程序）**、**FPS / 帧耗时** 与 **绘制调用**，并自动识别常见游戏引擎。
 
-> 需要 Chrome / Edge **111+**（动态注册 MAIN world 内容脚本）。Firefox 暂不适配（`performance.memory` 与动态 MAIN world 注册均不可用，JS 堆内存一栏会显示 `--`）。
+> 需要 Chrome / Edge **111+**（MAIN world content script）。Firefox 暂不适配（`performance.memory` 与 MAIN world 注册均不可用，JS 堆内存一栏会显示 `--`）。
 >
-> **默认不注入任何页面**：安装时不申请任何网站权限，只在用户指定的网站或点击扩展图标时启用；页面内 HUD 默认关闭。
+> **零配置启用**：监测脚本在页面脚本运行前自动注入；识别到 WebGL 活动 / 游戏引擎的页面自动开始统计，点击扩展图标即可查看。非 WebGL 页面挂钩保持静默。页面内 HUD 默认关闭。
 
-## 启用方式与权限
+## 启用方式
 
-扩展有两种启用方式，按需选择：
-
-**方式一：常驻白名单（推荐常用游戏站）**
-
-1. 右键扩展图标 → 「选项」，或点击弹窗底部的「白名单」按钮；
-2. 输入域名（如 `example.com`、`*.example.com`、`localhost`）并确认授权。
-
-白名单网站每次打开页面都会在**游戏脚本运行之前**（`document_start`，页面主世界）自动注入，可统计到页面加载的全部资源。授权按站点单独申请（optional host permissions），删除条目时同步收回授权。
-
-**方式二：点击扩展图标（临时监测）**
-
-点击工具栏图标打开弹窗时，通过 `activeTab` 向当前页面临时注入，只统计**注入之后**创建的资源，关闭不保留、不申请任何常驻权限。适合偶尔查看、或临时排查某个站点。
-
-**页面内 HUD**：默认关闭。在弹窗中点击「显示 HUD」开启后会跨页面记住；点击 HUD 上的 `×` 关闭后不再自动弹出，可随时从弹窗重新打开。
+- **自动**：打开游戏页面即自动开始统计（脚本在 `document_start` 注入页面主世界，游戏脚本运行前完成 WebGL 挂钩，页面加载的全部资源都可统计）；
+- **页面内 HUD**：默认关闭。在弹窗中点击「显示 HUD」开启后会跨页面记住；点击 HUD 上的 `×` 关闭后不再自动弹出，可随时从弹窗重新打开；
+- 如果不想让某些网站被监测，可在 `chrome://extensions` 扩展详情页把「网站访问权限」改为「在特定网站上」或「点击时」。
 
 ## 功能
 
@@ -56,10 +45,10 @@
 1. 打开 `chrome://extensions`（Edge 为 `edge://extensions`）；
 2. 打开右上角 **开发者模式**；
 3. 点击 **加载已解压的扩展程序**，选择本目录 `html5-game-memory-monitor`；
-4. 打开 HTML5 游戏页面后**点击扩展图标**即可临时监测；常用游戏站建议按上文加入白名单（或打开 `demo/game.html` 体验）。
+4. 打开 HTML5 游戏页面（或 `demo/game.html`），点击扩展图标查看面板。
 
-> 白名单网站的页面在安装扩展**之前**已打开的，需要刷新一次才会注入。
-> 若要监测 `file://` 打开的本地页面：先在扩展详情页开启 **“允许访问文件网址”**，再在白名单中添加 `file:///*`。
+> 安装扩展后，**已打开的页面需要刷新一次**（脚本在 `document_start` 注入）。
+> 若要监测 `file://` 打开的本地页面，需在扩展详情页开启 **“允许访问文件网址”**。
 
 ## 演示页
 
@@ -82,32 +71,25 @@ python -m http.server 8000 --directory demo
 │ 统计资源/绘制/FPS     │ ◀─────────────── │ 采样 JS 堆         │ ◀─────────────── │ 按钮     │
 │ 识别引擎               │  控制消息(重置)  │ 响应控制消息        │                  │          │
 └───────────────────────┘                  └────────────────────┘                  └──────────┘
-        ▲
-        │ 白名单：background.js 动态注册（document_start）
-        │ 其他页：popup 以 activeTab 临时注入
 ```
 
-- **manifest.json**：不含静态 `content_scripts`；声明 `scripting` / `storage` 权限与 `optional_host_permissions`（按站点授权，安装时零网站权限警告）。
-- **background.js**：Service Worker。监听白名单（`chrome.storage.sync`）变化，用 `chrome.scripting.registerContentScripts` 把 hook.js（`world: "MAIN"`，`document_start`）与 content.js 动态注册到白名单网站，注册跨浏览器重启持久生效；已被用户撤销授权的站点自动跳过。
-- **hook.js**：页面主世界挂钩脚本，`document_start` 同步执行时确保在页面任何脚本之前完成 WebGL API 挂钩（解决 Laya 等引擎早期初始化错过的问题）。挂钩 `WebGLRenderingContext` 与 `WebGL2RenderingContext`（含 3D 纹理 / 2D 数组纹理 / 渲染缓冲）。所有挂钩 try/catch 保护，不影响游戏运行。第一次 WebGL 方法调用自动激活统计（兜底：即使 `getContext` 被错过也能开始统计）；带 `__GAME_MEM_HOOK__` 防重复注入。
-- **popup.js**：打开弹窗（点击扩展图标，`activeTab` 生效）时若当前页未注入，先用 `chrome.scripting.executeScript`（MAIN world + 隔离世界）临时注入，再开始拉取快照。
+- **manifest.json**：静态注册 `content_scripts`（hook.js → MAIN world，content.js → 隔离世界，均 `document_start`）；无 background、无额外权限。
+- **hook.js**：页面主世界挂钩脚本，在页面任何脚本之前完成 WebGL API 挂钩（解决 Laya 等引擎早期初始化错过的问题）。挂钩 `WebGLRenderingContext` 与 `WebGL2RenderingContext`（含 3D 纹理 / 2D 数组纹理 / 渲染缓冲）。所有挂钩 try/catch 保护，不影响游戏运行。第一次 WebGL 方法调用自动激活统计；识别到引擎全局对象后自动打上引擎标签；带 `__GAME_MEM_HOOK__` 防重复注入；在 XHR / fetch 加载层标记二进制资源 URL，上传纹理时反查来源。
 - **content.js**：隔离世界。接收 hook 快照、采样 JS 堆、响应弹窗消息。
-- **options.js**：白名单管理。添加站点时在用户手势内同步 `chrome.permissions.request` 授权，写入 storage 由 background 统一注册；删除站点时同步 `permissions.remove` 收回授权。
 - **popup**：纯前端弹窗，无外部依赖；用 Canvas 绘制 FPS / JS 堆 / 纹理显存三条趋势折线（最近约 45 秒）。
 
 ## 项目结构
 
 ```
 html5-game-memory-monitor/
-├── manifest.json          # MV3 清单（无静态 content_scripts，按站点可选授权）
-├── background.js          # Service Worker：白名单 → 动态注册内容脚本
+├── manifest.json          # MV3 清单（静态 content_scripts，document_start 注入）
 ├── hook.js                # 主世界 WebGL 挂钩（核心）
 ├── content.js             # 隔离世界消息层
 ├── popup.html / popup.css / popup.js
-├── options.html / options.css / options.js   # 常驻监测网站白名单
 ├── icons/                 # 16/48/128 图标（tools/gen_icons.py 生成）
 ├── demo/game.html         # 纹理增长演示页
 ├── tests/hook.test.js     # 单元测试（纯函数 + 伪造 WebGL 环境挂钩逻辑）
+├── tests/layaair-replay.js # LayaAir 3.x 真实调用序列回归测试
 └── tools/gen_icons.py     # 图标生成脚本（纯标准库）
 ```
 
@@ -124,10 +106,10 @@ node tests/hook.test.js
 - **显存为估算值**：按 `internalFormat × 尺寸` 计算；`texSubImage2D` 部分更新按整幅重估；压缩格式按 4×4 块近似（ASTC/PVRTC 块尺寸不同）；纹理显存不含采样器状态与帧缓冲附件引用。
 - **纹理来源为调用栈解析**：记录 `createTexture` 和首次 `texImage2D` 的调用位置，并沿调用栈深入解析：入口帧通常是引擎 GL 封装层（如 `laya.webgl_2D.js`），会继续跳过引擎 bundle 帧，提取第一个业务侧帧（加载器回调 / 场景反序列化 / 业务代码）作为来源展示；引擎内部生成的纹理（渲染目标、阴影图）无业务帧时回退显示入口帧。若代码被压缩或混淆，函数名可能不直观；视频纹理等每帧重复上传只记录首次上传来源；快照最多携带显存最大的 50 份纹理明细。
 - **JS 堆内存**：Chrome 独有 API；数字包含 GC 未回收部分，作为趋势参考而非精确占用。
-- **点击图标临时注入**：只统计注入之后创建的资源（纹理等初始资源会缺失）；需要完整统计请使用白名单方式。
+- 安装扩展前已打开的页面不会自动注入，刷新即可。
+- 不想监测某些网站时，可在扩展详情页调整「网站访问权限」（如仅限特定网站或点击时）。
 - **WebGPU 游戏**：暂未挂钩（可在 hook.js 中扩展 `navigator.gpu`）。
 - **OffscreenCanvas** 中的 WebGL 上下文未追踪（可在 `getContext` 挂钩中扩展）。
-- 白名单网站在安装扩展前已打开的页面不会自动注入，刷新即可。
 
 ## 扩展点
 

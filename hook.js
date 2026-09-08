@@ -1,12 +1,10 @@
 /**
  * hook.js — 注入页面“主世界”(Main World) 的 WebGL 资源挂钩脚本。
  *
- * 注入方式（两种，见 README）：
- *  - 白名单网站：background.js 用 chrome.scripting.registerContentScripts 注册为
- *    MAIN world 内容脚本，document_start 同步执行，确保在页面任何脚本之前完成
- *    WebGL API 挂钩（解决 Laya 等引擎早期初始化错过的问题）；
- *  - 点击扩展图标：popup.js 用 activeTab + chrome.scripting.executeScript(world: MAIN)
- *    临时注入，仅统计注入之后的资源。
+ * 注入方式：manifest 静态注册为 MAIN world content script，document_start 同步注入，
+ *           确保在页面任何脚本之前完成 WebGL API 挂钩（解决 Laya 等引擎早期初始化错过的问题）。
+ *           所有页面都注入轻量挂钩，识别到 WebGL 活动 / 游戏引擎后自动开始统计；
+ *           非 WebGL 页面挂钩保持静默，几乎零开销。
  *
  * 职责：
  *  - 挂钩 HTMLCanvasElement.getContext，检测 WebGL / WebGL2 上下文；

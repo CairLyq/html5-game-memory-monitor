@@ -6,8 +6,8 @@
  *  2. 采样 performance.memory（JS 堆内存，仅 Chrome 系浏览器支持）；
  *  3. 响应 popup 的 get-stats / reset 消息。
  *
- * 注：hook.js 由 background.js 按白名单动态注册（document_start，MAIN world），
- *     或由 popup.js 通过 activeTab 临时注入，无需本脚本再动态注入。
+ * 注：hook.js 已在 manifest 中注册为 MAIN world content script，在 document_start 同步执行，
+ *     无需本脚本再动态注入。
  */
 (function () {
   'use strict';
