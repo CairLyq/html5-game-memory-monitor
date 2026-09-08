@@ -266,7 +266,8 @@
       if (format === 'json') {
         downloadFile('textures-' + ts + '.json', resp.data, 'application/json');
       } else {
-        downloadFile('textures-' + ts + '.csv', resp.data, 'text/csv;charset=utf-8');
+        // BOM：让 Excel 识别 UTF-8，否则中文标题按系统 ANSI（GBK）解析会乱码
+        downloadFile('textures-' + ts + '.csv', '\uFEFF' + resp.data, 'text/csv;charset=utf-8');
       }
     } else {
       alert('导出失败: ' + (resp && resp.error ? resp.error : '页面未注入监测'));
