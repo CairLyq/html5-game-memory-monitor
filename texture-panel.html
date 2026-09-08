@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>纹理明细面板 - GameMem</title>
+<link rel="stylesheet" href="texture-panel.css">
+</head>
+<body>
+<header>
+  <div class="brand">GameMem · 纹理明细</div>
+  <div class="header-right">
+    <span id="engineBadge" class="badge">--</span>
+    <span id="tabInfo" class="tab-info">--</span>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input id="searchInput" type="text" placeholder="搜索资源名 / URL..." class="search">
+    <select id="sortSelect" class="select">
+      <option value="bytes-desc">按大小 ↓</option>
+      <option value="bytes-asc">按大小 ↑</option>
+      <option value="bind-desc">按绑定次数 ↓</option>
+      <option value="bind-asc">按绑定次数 ↑</option>
+      <option value="id-asc">按 ID ↑</option>
+    </select>
+    <label class="checkbox-label">
+      <input type="checkbox" id="hideHidden"> 仅显示未隐藏
+    </label>
+  </div>
+  <div class="toolbar-right">
+    <button id="btnRefresh" class="btn">刷新</button>
+    <button id="btnExportCsv" class="btn">导出 CSV</button>
+    <button id="btnExportJson" class="btn">导出 JSON</button>
+  </div>
+</div>
+
+<div class="summary">
+  <span>共 <b id="totalCount">0</b> 份纹理</span>
+  <span>总显存 <b id="totalBytes">0 B</b></span>
+  <span>已隐藏 <b id="hiddenCount">0</b> 份</span>
+  <span>显示 <b id="shownCount">0</b> 份</span>
+</div>
+
+<div class="table-container">
+  <table class="tex-table">
+    <thead>
+      <tr>
+        <th class="col-id">ID</th>
+        <th class="col-size">大小</th>
+        <th class="col-dim">尺寸</th>
+        <th class="col-fmt">格式</th>
+        <th class="col-bind">绑定次数<br><small>累计 / 每秒</small></th>
+        <th class="col-resource">资源 / 来源</th>
+        <th class="col-age">存活</th>
+        <th class="col-action">操作</th>
+      </tr>
+    </thead>
+    <tbody id="texBody">
+      <tr><td colspan="8" class="empty">加载中...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+<div class="hint">
+  提示：点击「隐藏」可将该纹理替换为 1×1 透明纹理，游戏中使用该纹理的区域会变透明，方便定位使用位置；再次点击恢复。绑定次数为近似引用统计（每次 bindTexture 计数）。
+</div>
+
+<script src="texture-panel.js"></script>
+</body>
+</html>

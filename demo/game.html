@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>WebGL 内存监测演示页</title>
+<style>
+  body { margin: 0; padding: 24px; background: #0b1220; color: #dbeafe; font-family: 'Segoe UI', 'PingFang SC', sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  #stats { font: 13px/1.8 Consolas, 'Courier New', monospace; color: #93c5fd; margin-bottom: 12px; }
+  canvas { border: 1px solid #1e2b45; border-radius: 8px; background: #000; }
+  .hint { margin-top: 10px; font-size: 12px; color: #64748b; max-width: 560px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<h1>WebGL 内存监测演示页</h1>
+<div id="stats">纹理 0 / 60 ｜ FPS --</div>
+<canvas id="c" width="480" height="360"></canvas>
+<div class="hint">每 1.5 秒创建一张 256×256 RGBA 纹理（约 0.25MB）并生成 mipmap，累积到 60 张后停止。用扩展弹窗观察「纹理数量 / 估算显存 / FPS / JS 堆」的变化。</div>
+<script>
+(function () {
+  var canvas = document.getElementById('c');
+  var statsEl = document.getElementById('stats');
+  var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+  if (!gl) { statsEl.textContent = '当前环境不支持 WebGL'; return; }
+
+  // 着色器
+  var vs = 'attribute vec2 a; varying vec2 v; void main(){ v=a; gl_Position=vec4(a,0.0,1.0); }';
+  var fs = [
+    'precision mediump float;',
+    'uniform float u;',
+    'uniform sampler2D t;',
+    'varying vec2 v;',
+    'void main(){',
+    '  vec4 c = texture2D(t, v*0.5+0.5);',
+    '  gl_FragColor = c * vec4(0.5+0.5*sin(u+v.x*3.0), 0.5+0.5*cos(u+v.y*3.0), 1.0, 1.0);',
+    '}'
+  ].join('\n');
+  function sh(type, src) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    return s;
+  }
+  var prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  // 顶点缓冲
+  var buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  var a = gl.getAttribLocation(prog, 'a');
+  gl.enableVertexAttribArray(a);
+  gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+
+  // 纹理工厂：持续创建纹理，制造可观测的内存增长
+  var textures = [];
+  var TEX_MAX = 60;
+  function makeTexture() {
+    var t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    var data = new Uint8Array(256 * 256 * 4);
+    for (var i = 0; i < data.length; i++) data[i] = (Math.random() * 255) | 0;
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 256, 0, gl.RGBA, gl.UNSIGNED_BYTE, data);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    return t;
+  }
+  setInterval(function () {
+    if (textures.length < TEX_MAX) textures.push(makeTexture());
+  }, 1500);
+
+  // 渲染循环
+  var frames = 0;
+  var last = performance.now();
+  var fps = 0;
+  var uLoc = gl.getUniformLocation(prog, 'u');
+  var tLoc = gl.getUniformLocation(prog, 't');
+
+  function render(now) {
+    frames++;
+    if (now - last >= 1000) { fps = frames; frames = 0; last = now; }
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0] || null);
+    gl.uniform1i(tLoc, 0);
+    gl.uniform1f(uLoc, now / 500);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    var mb = (textures.length * (256 * 256 * 4) * (4 / 3)) / 1048576;
+    statsEl.textContent = '纹理 ' + textures.length + ' / ' + TEX_MAX +
+      ' ｜ FPS ' + fps +
+      ' ｜ 估算显存 ' + mb.toFixed(1) + ' MB';
+    requestAnimationFrame(render);
+  }
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>

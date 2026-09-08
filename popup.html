@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>HTML5 游戏内存监测</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <div class="brand">MEM·WATCH</div>
+  <div id="engine" class="badge">未识别</div>
+</header>
+
+<section class="card hero">
+  <div class="hero-main">
+    <div class="metric">
+      <span id="fps" class="num">--</span><span class="unit">FPS</span>
+    </div>
+    <div class="metric small">
+      <span id="frameMs" class="num">--</span><span class="unit">ms/帧</span>
+    </div>
+    <div class="metric small">
+      <span id="dps" class="num">--</span><span class="unit">绘制/秒</span>
+    </div>
+  </div>
+  <div class="subrow">累计绘制 <b id="drawTotal">0</b> · WebGL 上下文 <b id="contexts">0</b></div>
+</section>
+
+<section class="card">
+  <div class="card-title">JS 堆内存 <span id="heapRatio" class="dim"></span></div>
+  <div class="bar"><div id="heapBar" class="bar-fill"></div></div>
+  <div class="subrow">已用 <b id="heapUsed">--</b> MB / 上限 <b id="heapLimit">--</b> MB</div>
+</section>
+
+<section class="card">
+  <div class="card-title">GPU 资源（估算）</div>
+  <div class="grid">
+    <div class="stat"><span id="texCount" class="num">--</span><span class="unit">纹理</span></div>
+    <div class="stat"><span id="bufCount" class="num">--</span><span class="unit">缓冲区</span></div>
+    <div class="stat"><span id="shaderCount" class="num">--</span><span class="unit">着色器</span></div>
+    <div class="stat"><span id="progCount" class="num">--</span><span class="unit">程序</span></div>
+  </div>
+  <div class="subrow">纹理显存 <b id="texMB">--</b> MB · 缓冲显存 <b id="bufMB">--</b> MB · 渲染缓冲 <b id="rbMB">--</b> MB（<b id="rbCount">--</b> 个）</div>
+</section>
+
+<section class="card">
+  <div class="card-title">纹理明细 <span id="texDetailCount" class="dim"></span></div>
+  <div class="tex-list-head">
+    <span class="col-size">大小</span>
+    <span class="col-dim">尺寸</span>
+    <span class="col-fmt">格式</span>
+    <span class="col-src">资源 / 来源</span>
+  </div>
+  <div id="texList" class="tex-list"></div>
+  <div id="texListEmpty" class="tex-empty" style="display:none;">暂无纹理</div>
+</section>
+
+<section class="card">
+  <div class="card-title">趋势（最近约 45 秒）</div>
+  <div class="spark-row">
+    <div class="spark"><div class="spark-label fps">FPS</div><canvas id="sparkFps"></canvas></div>
+    <div class="spark"><div class="spark-label heap">JS堆(MB)</div><canvas id="sparkHeap"></canvas></div>
+    <div class="spark"><div class="spark-label tex">纹理(MB)</div><canvas id="sparkTex"></canvas></div>
+  </div>
+</section>
+
+<footer>
+  <span id="status" class="status">…</span>
+  <div class="actions">
+    <button id="btnPanel" type="button" title="打开全量纹理明细面板（可显隐/排序/导出）">纹理面板</button>
+    <button id="btnHud" type="button" title="在游戏页面显示悬浮监测面板">显示 HUD</button>
+    <button id="btnReset" type="button">重置计数</button>
+    <button id="btnReload" type="button">刷新页面</button>
+  </div>
+</footer>
+
+<script src="popup.js"></script>
+</body>
+</html>

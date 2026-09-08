@@ -1,0 +1,273 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  background: #0f1219;
+  color: #c8d0e0;
+  min-height: 100vh;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #1a1f2e, #151925);
+  border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+}
+
+.brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: #00d4ff;
+  letter-spacing: 1px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.badge {
+  padding: 3px 10px;
+  background: rgba(0, 212, 255, 0.12);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 12px;
+  font-size: 11px;
+  color: #00d4ff;
+}
+
+.tab-info {
+  font-size: 11px;
+  color: #6b7a90;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: #151925;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.toolbar-left, .toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.search {
+  padding: 6px 12px;
+  background: #0f1219;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #e0e8f0;
+  font-size: 12px;
+  width: 220px;
+  outline: none;
+}
+.search:focus { border-color: rgba(0, 212, 255, 0.5); }
+
+.select {
+  padding: 6px 10px;
+  background: #0f1219;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: #e0e8f0;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #8a96ac;
+  cursor: pointer;
+}
+.checkbox-label input { cursor: pointer; }
+
+.btn {
+  padding: 6px 14px;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 6px;
+  color: #00d4ff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover {
+  background: rgba(0, 212, 255, 0.2);
+  border-color: rgba(0, 212, 255, 0.5);
+}
+.btn:active { transform: scale(0.97); }
+
+.summary {
+  display: flex;
+  gap: 24px;
+  padding: 10px 20px;
+  background: #12161f;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  color: #8a96ac;
+}
+.summary b { color: #e0e8f0; font-weight: 600; }
+
+.table-container {
+  overflow: auto;
+  max-height: calc(100vh - 220px);
+}
+
+.tex-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.tex-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tex-table th {
+  padding: 10px 12px;
+  background: #1a1f2e;
+  border-bottom: 1px solid rgba(0, 212, 255, 0.2);
+  color: #00d4ff;
+  font-weight: 600;
+  text-align: left;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.tex-table th small { color: #6b7a90; font-weight: 400; }
+
+.tex-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.tex-table tbody tr:hover {
+  background: rgba(0, 212, 255, 0.04);
+}
+
+.tex-table tr.hidden-row {
+  opacity: 0.45;
+}
+.tex-table tr.hidden-row td { color: #6b7a90; }
+
+.col-id { width: 50px; text-align: center; }
+.col-size { width: 80px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.col-dim { width: 110px; font-variant-numeric: tabular-nums; white-space: nowrap; color: #8a96ac; }
+.col-fmt { width: 70px; color: #8a96ac; }
+.col-bind { width: 100px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.col-bind .frame-bind { color: #00d4ff; font-size: 11px; }
+.col-resource { min-width: 200px; }
+.col-resource .res-name { color: #e0e8f0; font-weight: 500; }
+.col-resource .res-url { color: #6b7a90; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; display: block; }
+.col-resource .res-stack { color: #8a96ac; font-size: 11px; }
+.col-age { width: 60px; color: #8a96ac; font-variant-numeric: tabular-nums; }
+.col-action { width: 80px; text-align: center; }
+
+.btn-hide {
+  padding: 4px 10px;
+  background: rgba(250, 173, 20, 0.12);
+  border: 1px solid rgba(250, 173, 20, 0.35);
+  border-radius: 4px;
+  color: #faad14;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-hide:hover {
+  background: rgba(250, 173, 20, 0.25);
+}
+.btn-show {
+  padding: 4px 10px;
+  background: rgba(82, 196, 26, 0.12);
+  border: 1px solid rgba(82, 196, 26, 0.35);
+  border-radius: 4px;
+  color: #52c41a;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-show:hover {
+  background: rgba(82, 196, 26, 0.25);
+}
+
+.btn-replace {
+  padding: 4px 10px;
+  background: rgba(0, 212, 255, 0.1);
+  border: 1px solid rgba(0, 212, 255, 0.3);
+  border-radius: 4px;
+  color: #00d4ff;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 4px;
+}
+.btn-replace:hover {
+  background: rgba(0, 212, 255, 0.2);
+}
+
+.btn-restore {
+  padding: 4px 10px;
+  background: rgba(156, 39, 176, 0.12);
+  border: 1px solid rgba(156, 39, 176, 0.4);
+  border-radius: 4px;
+  color: #ce93d8;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 4px;
+}
+.btn-restore:hover {
+  background: rgba(156, 39, 176, 0.25);
+}
+
+.col-action {
+  white-space: nowrap;
+}
+
+tr.replaced-row {
+  background: rgba(156, 39, 176, 0.05);
+}
+tr.replaced-row .res-name {
+  color: #ce93d8;
+}
+
+.empty {
+  text-align: center;
+  padding: 40px;
+  color: #6b7a90;
+  font-size: 13px;
+}
+
+.hint {
+  padding: 10px 20px;
+  background: #12161f;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 11px;
+  color: #6b7a90;
+  line-height: 1.6;
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0f1219; }
+::-webkit-scrollbar-thumb { background: #2a3142; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4256; }
