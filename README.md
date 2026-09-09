@@ -86,11 +86,11 @@ html5-game-memory-monitor/
 ├── hook.js                # 主世界 WebGL 挂钩（核心）
 ├── content.js             # 隔离世界消息层
 ├── popup.html / popup.css / popup.js
-├── icons/                 # 16/48/128 图标（tools/gen_icons.py 生成）
+├── icons/                 # 16/48/128 图标（tools/gen_icons.py 生成，需要 Pillow）
 ├── demo/game.html         # 纹理增长演示页
 ├── tests/hook.test.js     # 单元测试（纯函数 + 伪造 WebGL 环境挂钩逻辑）
 ├── tests/layaair-replay.js # LayaAir 3.x 真实调用序列回归测试
-└── tools/gen_icons.py     # 图标生成脚本（纯标准库）
+└── tools/gen_icons.py     # 图标生成脚本（需要 Pillow）
 ```
 
 ## 测试

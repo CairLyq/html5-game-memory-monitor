@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "HTML5 游戏内存监测",
   "version": "1.8.0",
-  "description": "监测 HTML5 游戏（Phaser / PixiJS / Three.js / Babylon.js / Cocos / LayaAir 等）的 JS 堆内存、WebGL 纹理/缓冲区/着色器/渲染缓冲资源、FPS 与绘制调用；支持逐份纹理来源追踪。识别到游戏引擎的页面自动开始统计。",
+  "description": "监测 HTML5 游戏的 JS 堆内存、WebGL 纹理显存、FPS 与绘制调用，自动识别 Phaser / PixiJS / Three.js / LayaAir 等游戏引擎。",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

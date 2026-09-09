@@ -9,8 +9,9 @@
 HTML5 游戏内存监测
 
 **Short Description**
+<!-- 33 字，≤132 ✓ 直接粘贴下行 -->
 
-监测 HTML5 游戏的内存、纹理显存、FPS 与绘制调用，仅在您指定的网站启用。
+监测 HTML5 游戏的内存、纹理显存、FPS 与绘制调用，自动识别游戏引擎，打开游戏页自动开始统计。
 
 **Detailed Description**
 
@@ -44,15 +45,15 @@ Chinese (Simplified)
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | icons/icon128.png |
-| Screenshot 1 [REQUIRED] | 1280×800 or 640×400 | 🟡 Needs update | docs/screenshots/popup-overview.png |
-| Screenshot 2 [RECOMMENDED] | 1280×800 or 640×400 | 🟡 Needs update | docs/screenshots/texture-panel.png |
+| Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | docs/screenshots/store-shot-1280x800-1.png |
+| Screenshot 2 [RECOMMENDED] | 1280×800 | ✅ Ready | docs/screenshots/store-shot-1280x800-2.png |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ⬜ Not created | |
 
 ### Screenshot Notes
 
-- Screenshot 1：弹窗面板监测 demo 页（纹理数量与显存随时间增长），底部可见「白名单」按钮；建议标注"仅在你指定的网站启用"。
-- Screenshot 2：页面内 HUD 面板 + 纹理明细弹窗；HUD 需手动开启（默认关闭），截图前先开启。
-- 权限模型改动后（新增白名单按钮、HUD 默认关闭），两张截图均需重截。
+- Screenshot 1：弹窗面板（JS 堆 / GPU 资源 / 纹理明细 / 趋势折线）。
+- Screenshot 2：纹理明细面板（显隐 / 排序 / 导出）。
+- UI 大改后重截：在游戏页打开弹窗/面板截图，再用 PIL 合成到 1280×800 画布（深色主题同扩展样式）。
 
 ## Permissions Justification
 
