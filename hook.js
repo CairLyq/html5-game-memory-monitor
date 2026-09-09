@@ -1558,39 +1558,8 @@
     setInterval(updateHUD, 1000);
   }
 
-  // ---- 控制台定时输出 ----
-  function startConsoleOutput() {
-    setInterval(function () {
-      var snap = snapshot();
-      if (!snap.active) return;
-      var line = '%c[GameMem] ' + (snap.engine || '')
-        + ' | JS堆:' + (snap.jsHeap ? (snap.jsHeap / 1048576).toFixed(1) + 'MB' : '--')
-        + ' | 纹理:' + snap.texturesAlive + '(' + (snap.texBytes / 1048576).toFixed(1) + 'MB)'
-        + ' | FPS:' + snap.fps + ' 帧时:' + snap.frameMs + 'ms'
-        + ' | Draw/帧:' + snap.drawCalls
-        + ' | 缓冲:' + snap.buffersAlive + ' 着色器:' + snap.shadersAlive + ' 程序:' + snap.programsAlive
-        + ' | RenderBuf:' + snap.renderbuffersAlive;
-      console.log(line, 'color:#00d4ff;font-weight:bold');
-      if (snap.textures && snap.textures.length > 0) {
-        var tableData = snap.textures.slice(0, 15).map(function (t) {
-          var src = t.uploadedSource || t.createdSource || {};
-          return {
-            '大小(MB)': parseFloat((t.bytes / 1048576).toFixed(2)),
-            '尺寸': t.width ? t.width + '×' + t.height : '-',
-            '格式': t.format,
-            '资源名': t.sourceName || '',
-            '资源文件': t.sourceUrl ? t.sourceUrl.substring(t.sourceUrl.lastIndexOf('/') + 1).split('?')[0] : '',
-            '创建函数': src.func || ''
-          };
-        });
-        console.table(tableData);
-      }
-    }, 5000);
-  }
-
   function initHUD() {
     createHUD();
-    startConsoleOutput();
   }
   if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') {
